@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "seed": "node prisma/seed.mjs"
   },
   "keywords": [],
   "type": "commonjs",
@@ -12,6 +13,13 @@
     "prisma": "^6.19.3"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3"
+    "@prisma/client": "^6.19.3",
+    "bcrypt": "^6.0.0",
+    "express-session": "^1.19.0",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.mjs"
   }
 }

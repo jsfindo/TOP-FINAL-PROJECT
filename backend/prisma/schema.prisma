@@ -5,8 +5,8 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
+  
 }
 
 datasource db {
@@ -15,24 +15,27 @@ datasource db {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  name         String
-  email        String        @unique
-  phone        String
-  education    String
-  desc         String
-  experience   String // Fixed capitalization
-  skills       String // Fixed capitalization
-  applications Application[] // Virtual relation field: items applied to
+  id          Int           @id @default(autoincrement())
+  name        String
+  email       String        @unique
+  password    String        // Added password field
+  phone       String
+  education   String
+  desc        String
+  experience  String
+  skills      String
+  applications Application[]
 }
 
 model Company {
   id          Int          @id @default(autoincrement())
   name        String
+  email       String       @unique // Added email field for login
+  password    String       // Added password field
   location    String
   desc        String
-  websitelink String // Fixed capitalization
-  jobOpenings JobOpening[] // Virtual relation field: jobs managed by company
+  websitelink String
+  jobOpenings JobOpening[]
 }
 
 model JobOpening {
