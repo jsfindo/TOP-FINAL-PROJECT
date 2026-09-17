@@ -13,3 +13,43 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id           Int           @id @default(autoincrement())
+  name         String
+  email        String        @unique
+  phone        String
+  education    String
+  desc         String
+  experience   String // Fixed capitalization
+  skills       String // Fixed capitalization
+  applications Application[] // Virtual relation field: items applied to
+}
+
+model Company {
+  id          Int          @id @default(autoincrement())
+  name        String
+  location    String
+  desc        String
+  websitelink String // Fixed capitalization
+  jobOpenings JobOpening[] // Virtual relation field: jobs managed by company
+}
+
+model JobOpening {
+  id           Int           @id @default(autoincrement())
+  companyId    Int // Scaled to store foreign key relation
+  company      Company       @relation(fields: [companyId], references: [id])
+  title        String
+  desc         String
+  dateClose    DateTime // Prisma uses DateTime for calendar dates
+  applications Application[] // Virtual relation field: users who applied
+}
+
+model Application {
+  id        Int        @id @default(autoincrement())
+  openingId Int
+  opening   JobOpening @relation(fields: [openingId], references: [id])
+  userId    Int
+  user      User       @relation(fields: [userId], references: [id])
+  date      DateTime   @default(now()) // Prisma defaults to current timestamp
+}
