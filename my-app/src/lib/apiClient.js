@@ -1,24 +1,30 @@
 // lib/apiClient.js
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-export async function apiClient(endpoint, options = {}) {
+export async function apiClient(endpoint, customOptions = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
 
-  // Fix: Explicitly stringify body objects to prevent "[object Object]" errors
-  let body = options.body;
+  // Extract body and headers to prevent customOptions from overriding them
+  const { body: rawBody, headers: customHeaders, method: customMethod, ...restOptions } = customOptions;
+
+  // Safely stringify object payloads
+  let body = rawBody;
   if (body && typeof body === 'object' && !(body instanceof FormData)) {
     body = JSON.stringify(body);
   }
 
+  // Determine method: if body exists and no method was specified, default to POST
+  const method = customMethod || (body ? 'POST' : 'GET');
+
   const response = await fetch(url, {
-    method: options.method || 'GET',
+    method,
+    credentials: 'include',
+    ...restOptions,
     headers: {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...customHeaders,
     },
-    body,
-    credentials: 'include',
-    ...options,
+    ...(body ? { body } : {}), // Only include body property if body exists
   });
 
   const contentType = response.headers.get('content-type');

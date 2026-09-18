@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { loginCompany } from '@/services/apiServices';
 
 export default function EmployerLoginPage() {
@@ -19,52 +18,37 @@ export default function EmployerLoginPage() {
     setError('');
 
     try {
-      // Replaced raw fetch with centralized helper
       await loginCompany(formData);
       router.push('/employer/dashboard');
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Login failed');
     }
   };
 
   return (
-    <main style={{ maxWidth: '400px', margin: '80px auto', padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+    <main style={{ maxWidth: '400px', margin: '60px auto', padding: '20px' }}>
       <h2>Employer Login</h2>
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Company Email</label>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-          />
-        </div>
-
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Password</label>
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            required
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-          />
-        </div>
-
-        <button type="submit" style={{ padding: '10px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-          Sign In
-        </button>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          value={formData.email}
+          onChange={handleChange}
+          required
+        />
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          value={formData.password}
+          onChange={handleChange}
+          required
+        />
+        <button type="submit">Log In</button>
       </form>
-
-      <p style={{ marginTop: '20px', fontSize: '14px' }}>
-        Need a company account? <Link href="/employer/signup">Register your company</Link>
-      </p>
     </main>
   );
 }

@@ -76,30 +76,37 @@ passport.use(
     { usernameField: 'email' },
     async (email, password, done) => {
       try {
-        console.log(`[AUTH CHECK - COMPANY] Attempting login for email: ${email}`);
+        console.log(`[AUTH CHECK - COMPANY] Email: "${email}"`);
+        console.log(`[AUTH CHECK - COMPANY] Incoming Plain Password: "${password}"`);
+
+        // Hash the incoming password for inspection
+        const hashedInput = await bcrypt.hash(password, 10);
+        console.log(`[AUTH CHECK - COMPANY] Incoming Password (Re-hashed): "${hashedInput}"`);
+
         const company = await prisma.company.findUnique({ where: { email } });
-        
+
         if (!company) {
-          console.log(`[AUTH FAIL - COMPANY] No company account found with email: ${email}`);
+          console.log(`[AUTH FAIL - COMPANY] Account not found for email: ${email}`);
           return done(null, false, { message: 'Incorrect credentials' });
         }
+
+        console.log(`[AUTH CHECK - COMPANY] Stored DB Hash:               "${company.password}"`);
 
         const isMatch = await bcrypt.compare(password, company.password);
         if (!isMatch) {
-          console.log(`[AUTH FAIL - COMPANY] Password mismatch for company: ${email}`);
+          console.log(`[AUTH FAIL - COMPANY] Bcrypt comparison returned false.`);
           return done(null, false, { message: 'Incorrect credentials' });
         }
 
-        console.log(`[AUTH SUCCESS - COMPANY] Company authenticated successfully: ${email}`);
+        console.log(`[AUTH SUCCESS - COMPANY] Authenticated: ${email}`);
         return done(null, { ...company, role: 'company' });
       } catch (err) {
-        console.error('[AUTH ERROR - COMPANY] Database or processing error:', err);
+        console.error('[AUTH ERROR - COMPANY]', err);
         return done(err);
       }
     }
   )
 );
-
 passport.serializeUser((entity, done) => {
   done(null, { id: entity.id, role: entity.role });
 });
@@ -215,9 +222,14 @@ app.post('/api/login/user', (req, res, next) => {
   })(req, res, next);
 });
 
-// Company Login Route with JSON Error Handlers and Logs
+// Company Login Route
 app.post('/api/login/company', (req, res, next) => {
-  console.log('[LOGIN REQUEST - COMPANY] Received login request:', req.body.email);
+  // LOG RECEIVED CREDS TO TERMINAL
+  console.log('[LOGIN REQUEST RECEIVED]:', {
+    email: req.body?.email,
+    password: req.body?.password,
+  });
+
   passport.authenticate('company-local', (err, company, info) => {
     if (err) {
       console.error('[LOGIN ERROR - COMPANY]', err);
