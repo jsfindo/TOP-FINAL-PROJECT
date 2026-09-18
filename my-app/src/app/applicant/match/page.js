@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getOpenings, applyToJob } from '@/services/apiServices';
 
 export default function ApplicantMatchPage() {
   const [openings, setOpenings] = useState([]);
@@ -16,9 +17,8 @@ export default function ApplicantMatchPage() {
 
   const fetchOpenings = async () => {
     try {
-      const res = await fetch('/api/openings');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch job openings');
+      // Replaced raw fetch with centralized helper
+      const data = await getOpenings();
       setOpenings(data);
     } catch (err) {
       setMessage({ text: err.message, type: 'error' });
@@ -40,14 +40,8 @@ export default function ApplicantMatchPage() {
     setMessage({ text: '', type: '' });
 
     try {
-      const res = await fetch('/api/applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ openingId: currentJob.id }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit application');
+      // Replaced raw fetch with centralized helper
+      await applyToJob(currentJob.id);
 
       setMessage({ text: `Applied to ${currentJob.title}!`, type: 'success' });
       // Move to the next job card automatically after applying

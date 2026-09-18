@@ -3,10 +3,19 @@ const session = require('express-session');
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcrypt');
+const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 
 const app = express();
 const prisma = new PrismaClient();
+
+// Enable CORS for Next.js frontend
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 
@@ -15,9 +24,14 @@ app.use(express.json());
 // -----------------------------------------------------------------------------
 app.use(
   session({
-    secret: 'your_session_secret_key', // Replace with an env variable in production
+    secret: process.env.SESSION_SECRET || 'your_session_secret_key',
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+    },
   })
 );
 
@@ -31,14 +45,24 @@ passport.use(
     { usernameField: 'email' },
     async (email, password, done) => {
       try {
+        console.log(`[AUTH CHECK - USER] Attempting login for email: ${email}`);
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return done(null, false, { message: 'Incorrect credentials' });
+        
+        if (!user) {
+          console.log(`[AUTH FAIL - USER] No user account found with email: ${email}`);
+          return done(null, false, { message: 'Incorrect credentials' });
+        }
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return done(null, false, { message: 'Incorrect credentials' });
+        if (!isMatch) {
+          console.log(`[AUTH FAIL - USER] Password mismatch for user: ${email}`);
+          return done(null, false, { message: 'Incorrect credentials' });
+        }
 
+        console.log(`[AUTH SUCCESS - USER] User authenticated successfully: ${email}`);
         return done(null, { ...user, role: 'user' });
       } catch (err) {
+        console.error('[AUTH ERROR - USER] Database or processing error:', err);
         return done(err);
       }
     }
@@ -52,14 +76,24 @@ passport.use(
     { usernameField: 'email' },
     async (email, password, done) => {
       try {
+        console.log(`[AUTH CHECK - COMPANY] Attempting login for email: ${email}`);
         const company = await prisma.company.findUnique({ where: { email } });
-        if (!company) return done(null, false, { message: 'Incorrect credentials' });
+        
+        if (!company) {
+          console.log(`[AUTH FAIL - COMPANY] No company account found with email: ${email}`);
+          return done(null, false, { message: 'Incorrect credentials' });
+        }
 
         const isMatch = await bcrypt.compare(password, company.password);
-        if (!isMatch) return done(null, false, { message: 'Incorrect credentials' });
+        if (!isMatch) {
+          console.log(`[AUTH FAIL - COMPANY] Password mismatch for company: ${email}`);
+          return done(null, false, { message: 'Incorrect credentials' });
+        }
 
+        console.log(`[AUTH SUCCESS - COMPANY] Company authenticated successfully: ${email}`);
         return done(null, { ...company, role: 'company' });
       } catch (err) {
+        console.error('[AUTH ERROR - COMPANY] Database or processing error:', err);
         return done(err);
       }
     }
@@ -90,6 +124,7 @@ function ensureAuthenticated(role) {
     if (req.isAuthenticated() && req.user.role === role) {
       return next();
     }
+    console.log(`[UNAUTHORIZED ACCESS] Attempted access to protected ${role} route by user ID: ${req.user?.id || 'Unauthenticated'}`);
     return res.status(401).json({ error: 'Unauthorized access' });
   };
 }
@@ -120,17 +155,23 @@ app.post('/api/signup/user', async (req, res) => {
       },
     });
 
+    console.log(`[SIGNUP SUCCESS - USER] Created user ID: ${newUser.id}`);
     return res.status(201).json({ message: 'User registered successfully', userId: newUser.id });
   } catch (error) {
+    console.error('[SIGNUP ERROR - USER]', error);
     return res.status(500).json({ error: 'User signup failed.' });
   }
 });
 
-// Company Signup
 app.post('/api/signup/company', async (req, res) => {
+  // CRITICAL DEBUG LOG
+  console.log('[SIGNUP BODY RECEIVED]:', req.body);
+
   try {
     const { name, email, password, location, desc, websitelink } = req.body;
+
     if (!name || !email || !password || !location) {
+      console.log('[REJECTED 400]:', { name, email, password, location });
       return res.status(400).json({ error: 'Name, email, password, and location are required.' });
     }
 
@@ -146,25 +187,60 @@ app.post('/api/signup/company', async (req, res) => {
       },
     });
 
+    console.log(`[SUCCESS] Company created with ID: ${newCompany.id}`);
     return res.status(201).json({ message: 'Company registered successfully', companyId: newCompany.id });
   } catch (error) {
+    console.error('[SIGNUP ERROR]', error);
     return res.status(500).json({ error: 'Company signup failed.' });
   }
 });
 
-// User & Company Logins
-app.post('/api/login/user', passport.authenticate('user-local'), (req, res) => {
-  res.json({ message: 'User logged in successfully', user: req.user });
+// User Login Route with JSON Error Handlers and Logs
+app.post('/api/login/user', (req, res, next) => {
+  console.log('[LOGIN REQUEST - USER] Received login request:', req.body.email);
+  passport.authenticate('user-local', (err, user, info) => {
+    if (err) {
+      console.error('[LOGIN ERROR - USER]', err);
+      return next(err);
+    }
+    if (!user) {
+      console.log(`[LOGIN REJECTED - USER] Reason: ${info?.message || 'Authentication failed'}`);
+      return res.status(401).json({ message: info?.message || 'Invalid email or password.' });
+    }
+    req.logIn(user, (err) => {
+      if (err) return next(err);
+      console.log(`[LOGIN SUCCESS - USER] Session established for ID: ${user.id}`);
+      return res.json({ message: 'User logged in successfully', user: req.user });
+    });
+  })(req, res, next);
 });
 
-app.post('/api/login/company', passport.authenticate('company-local'), (req, res) => {
-  res.json({ message: 'Company logged in successfully', company: req.user });
+// Company Login Route with JSON Error Handlers and Logs
+app.post('/api/login/company', (req, res, next) => {
+  console.log('[LOGIN REQUEST - COMPANY] Received login request:', req.body.email);
+  passport.authenticate('company-local', (err, company, info) => {
+    if (err) {
+      console.error('[LOGIN ERROR - COMPANY]', err);
+      return next(err);
+    }
+    if (!company) {
+      console.log(`[LOGIN REJECTED - COMPANY] Reason: ${info?.message || 'Authentication failed'}`);
+      return res.status(401).json({ message: info?.message || 'Invalid email or password.' });
+    }
+    req.logIn(company, (err) => {
+      if (err) return next(err);
+      console.log(`[LOGIN SUCCESS - COMPANY] Session established for ID: ${company.id}`);
+      return res.json({ message: 'Company logged in successfully', company: req.user });
+    });
+  })(req, res, next);
 });
 
 // Logout
 app.post('/api/logout', (req, res, next) => {
+  const entityId = req.user?.id;
   req.logout((err) => {
     if (err) return next(err);
+    console.log(`[LOGOUT] User/Company logged out ID: ${entityId}`);
     res.json({ message: 'Logged out successfully' });
   });
 });
@@ -177,7 +253,7 @@ app.post('/api/logout', (req, res, next) => {
 app.post('/api/company/createpost', ensureAuthenticated('company'), async (req, res) => {
   try {
     const { title, desc, dateClose } = req.body;
-    const companyId = req.user.id; // Automatically gets logged-in company ID
+    const companyId = req.user.id;
 
     if (!title || !desc || !dateClose) {
       return res.status(400).json({ error: 'Title, desc, and dateClose are required.' });
@@ -192,8 +268,10 @@ app.post('/api/company/createpost', ensureAuthenticated('company'), async (req, 
       },
     });
 
+    console.log(`[JOB POSTED] Created opening ID ${newJobOpening.id} for company ID ${companyId}`);
     return res.status(201).json({ message: 'Job opening created', jobOpening: newJobOpening });
   } catch (error) {
+    console.error('[JOB POST ERROR]', error);
     return res.status(500).json({ error: 'Failed to create job opening' });
   }
 });
@@ -207,6 +285,7 @@ app.get('/api/openings', async (req, res) => {
     });
     return res.status(200).json(openings);
   } catch (error) {
+    console.error('[FETCH OPENINGS ERROR]', error);
     return res.status(500).json({ error: 'Failed to fetch job openings' });
   }
 });
@@ -235,6 +314,7 @@ app.get('/api/company/:id/openings', async (req, res) => {
 
     return res.status(200).json({ companyId, totalResults: openings.length, openings });
   } catch (error) {
+    console.error('[COMPANY OPENINGS SEARCH ERROR]', error);
     return res.status(500).json({ error: 'Search failed' });
   }
 });
@@ -244,10 +324,10 @@ app.get('/api/company/:id/openings', async (req, res) => {
 // -----------------------------------------------------------------------------
 
 // Apply for a job opening (User Only)
-app.post('/api/applications/apply', ensureAuthenticated('user'), async (req, res) => {
+app.post('/api/applications', ensureAuthenticated('user'), async (req, res) => {
   try {
     const { openingId } = req.body;
-    const userId = req.user.id; // Automatically gets logged-in user ID
+    const userId = req.user.id;
 
     if (!openingId) return res.status(400).json({ error: 'openingId is required.' });
 
@@ -270,9 +350,32 @@ app.post('/api/applications/apply', ensureAuthenticated('user'), async (req, res
       include: { user: true, opening: true },
     });
 
+    console.log(`[APPLICATION SUBMITTED] User ID ${userId} applied to opening ID ${parsedOpeningId}`);
     return res.status(201).json({ message: 'Application submitted', application });
   } catch (error) {
+    console.error('[APPLICATION ERROR]', error);
     return res.status(500).json({ error: 'Application submission failed' });
+  }
+});
+
+// View applications submitted by logged-in user
+app.get('/api/applications/me', ensureAuthenticated('user'), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const applications = await prisma.application.findMany({
+      where: { userId },
+      include: {
+        opening: {
+          include: { company: true }
+        }
+      },
+      orderBy: { id: 'desc' }
+    });
+
+    return res.status(200).json(applications);
+  } catch (error) {
+    console.error('[FETCH USER APPLICATIONS ERROR]', error);
+    return res.status(500).json({ error: 'Failed to fetch applications' });
   }
 });
 
@@ -281,6 +384,18 @@ app.get('/api/openings/:id/applicants', ensureAuthenticated('company'), async (r
   try {
     const openingId = parseInt(req.params.id, 10);
 
+    const opening = await prisma.jobOpening.findUnique({
+      where: { id: openingId },
+    });
+
+    if (!opening) {
+      return res.status(404).json({ error: 'Job opening not found' });
+    }
+
+    if (opening.companyId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied to this job opening' });
+    }
+
     const applications = await prisma.application.findMany({
       where: { openingId },
       include: { user: true },
@@ -288,6 +403,7 @@ app.get('/api/openings/:id/applicants', ensureAuthenticated('company'), async (r
 
     return res.status(200).json(applications);
   } catch (error) {
+    console.error('[FETCH APPLICANTS ERROR]', error);
     return res.status(500).json({ error: 'Failed to fetch applicants' });
   }
 });
@@ -295,5 +411,5 @@ app.get('/api/openings/:id/applicants', ensureAuthenticated('company'), async (r
 // -----------------------------------------------------------------------------
 // 5. START SERVER
 // -----------------------------------------------------------------------------
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getOpenings } from '@/services/apiServices';
+import { apiClient } from '@/lib/apiClient';
 
 export default function EmployerDashboardPage() {
   const [openings, setOpenings] = useState([]);
@@ -18,9 +20,8 @@ export default function EmployerDashboardPage() {
 
   const fetchOpenings = async () => {
     try {
-      const res = await fetch('/api/openings');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load openings');
+      // Replaced raw fetch with centralized helper
+      const data = await getOpenings();
       setOpenings(data);
     } catch (err) {
       setError(err.message);
@@ -36,9 +37,8 @@ export default function EmployerDashboardPage() {
     setApplicants([]);
 
     try {
-      const res = await fetch(`/api/openings/${opening.id}/applicants`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch applicants');
+      // Replaced raw fetch with centralized apiClient helper
+      const data = await apiClient(`/api/openings/${opening.id}/applicants`);
       setApplicants(data);
     } catch (err) {
       setError(err.message);

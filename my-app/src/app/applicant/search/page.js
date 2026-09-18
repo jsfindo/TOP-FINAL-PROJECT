@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { applyToJob } from '@/services/apiServices';
+import { apiClient } from '@/lib/apiClient';
 
 export default function SearchOpeningsPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -19,9 +21,8 @@ export default function SearchOpeningsPage() {
     setMessage({ text: '', type: '' });
 
     try {
-      const res = await fetch(`/api/openings/search?q=${encodeURIComponent(searchTerm)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Search failed');
+      // Replaced raw fetch with centralized apiClient
+      const data = await apiClient(`/api/openings/search?q=${encodeURIComponent(searchTerm)}`);
       setResults(data);
     } catch (err) {
       setMessage({ text: err.message, type: 'error' });
@@ -32,15 +33,8 @@ export default function SearchOpeningsPage() {
 
   const handleApply = async (openingId) => {
     try {
-      const res = await fetch('/api/applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ openingId }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit application');
-
+      // Replaced raw fetch with centralized helper
+      await applyToJob(openingId);
       setMessage({ text: 'Successfully applied!', type: 'success' });
     } catch (err) {
       setMessage({ text: err.message, type: 'error' });

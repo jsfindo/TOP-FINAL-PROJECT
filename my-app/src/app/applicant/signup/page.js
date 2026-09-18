@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { registerUser } from '@/services/apiServices';
 
 export default function ApplicantSignupPage() {
   const router = useRouter();
@@ -27,15 +28,8 @@ export default function ApplicantSignupPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/signup/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Signup failed');
-
+      // Replaced raw fetch with centralized helper
+      await registerUser(formData);
       router.push('/applicant/login');
     } catch (err) {
       setError(err.message);

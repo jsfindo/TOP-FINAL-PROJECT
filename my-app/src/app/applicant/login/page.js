@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { loginUser } from '@/services/apiServices';
 
 export default function ApplicantLoginPage() {
   const router = useRouter();
@@ -18,15 +19,8 @@ export default function ApplicantLoginPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/login/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Login failed');
-
+      // Replaced raw fetch with centralized helper
+      await loginUser(formData);
       router.push('/openings');
     } catch (err) {
       setError(err.message);

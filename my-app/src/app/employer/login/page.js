@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { loginCompany } from '@/services/apiServices';
 
 export default function EmployerLoginPage() {
   const router = useRouter();
@@ -18,15 +19,8 @@ export default function EmployerLoginPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/login/company', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Login failed');
-
+      // Replaced raw fetch with centralized helper
+      await loginCompany(formData);
       router.push('/employer/dashboard');
     } catch (err) {
       setError(err.message);
